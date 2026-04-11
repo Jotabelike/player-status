@@ -23,7 +23,7 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
 
     matjson::Value payload;
     payload["accountId"] = std::to_string(accountManager->m_accountID);
-    payload["username"] = accountManager->m_username;
+    payload["username"] = accountManager->m_username.c_str();
     payload["levelName"] = levelName;
     payload["isPlaying"] = isPlaying;
     payload["percentage"] = percentage;
