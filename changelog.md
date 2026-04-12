@@ -1,3 +1,8 @@
+# 1.0.0 Beta 4
+- Implemented Argon token caching on the server to prevent API rate limits (Error 429)
+- Added a global cooldown system to gracefully handle traffic spikes and server restarts
+- Added detailed error logging to the Geode console for failed status updates to improve debugging
+
 # 1.0.0 Beta 3
 - Added editor status (Editor: Level Name) with purple and yellow colors
 - Fixed Argon re-authentication when switching accounts without restarting
