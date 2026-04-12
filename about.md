@@ -2,17 +2,20 @@
 
 See what your friends are doing in **real time** — right from their profile page.
 
-This mod adds a **live status indicator** to every player's profile, so you can instantly know if they're online, playing a level, or offline.
+This mod adds a **live status indicator** to every player's profile, so you can instantly know if they're online, playing a level, editing, or offline.
 
 ---
 
 ## Statuses
 
 ### Online
-The player has the game open and is browsing menus (main menu, level browser, editor, etc.).
+The player has the game open and is browsing menus (main menu, level browser, etc.).
 
 ### Playing: Level Name - 77%
 The player is currently inside a level. The level name and their **best percentage** on that level are displayed. The percentage updates if they beat their record during the session.
+
+### Editor: Level Name
+The player is currently editing a level. The level name is displayed in yellow next to the purple "Editor:" label.
 
 ### Offline
 The player is not currently in the game. This status appears when:
