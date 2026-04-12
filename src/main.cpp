@@ -270,7 +270,7 @@ class $modify(StatusProfilePage, ProfilePage) {
                     float startX = (parentWidth - totalW) / 2.0f;
                     label->setPosition({ startX + statusW, label->getPositionY() });
                     percentLabel->setPosition({ startX + statusW, percentLabel->getPositionY() });
-                    };
+                };
 
                 if (response.ok()) {
                     auto jsonResult = response.json();
