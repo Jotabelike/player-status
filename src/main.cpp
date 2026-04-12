@@ -3,6 +3,7 @@
 #include <Geode/modify/ProfilePage.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/utils/async.hpp>
+#include <argon/argon.hpp>
 #include <memory>
 
 using namespace geode::prelude;
@@ -11,12 +12,32 @@ using namespace geode::prelude;
 bool g_isPlaying = false;
 std::string g_levelName = "Main Menu";
 int g_percentage = 0;
+std::string g_authToken = "";
+
+ 
+void authenticateWithArgon() {
+    async::spawn(
+        argon::startAuth(),
+        [](Result<std::string> result) {
+            if (result.isOk()) {
+                g_authToken = std::move(result).unwrap();
+                log::info("Argon authentication successful");
+            }
+            else {
+                log::warn("Argon authentication failed: {}", result.unwrapErr());
+            }
+        }
+    );
+}
 
  
 void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int percentage = 0) {
     g_isPlaying = isPlaying;
     g_levelName = levelName;
     g_percentage = percentage;
+
+    
+    if (g_authToken.empty()) return;
 
     auto accountManager = GJAccountManager::sharedState();
     if (!accountManager || accountManager->m_accountID == 0) return;
@@ -27,6 +48,7 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     payload["levelName"] = levelName;
     payload["isPlaying"] = isPlaying;
     payload["percentage"] = percentage;
+    payload["authtoken"] = g_authToken;
 
     std::string url = "https://player-status-server.onrender.com/update-status";
 
@@ -34,9 +56,9 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     req.certVerification(false);
     req.bodyJSON(payload);
 
-    geode::async::spawn(
+    async::spawn(
         req.post(url),
-        [](web::WebResponse response) {  }
+        [](web::WebResponse response) {}
     );
 }
 
@@ -49,7 +71,8 @@ public:
 };
 
 $on_mod(Loaded) {
-    sendPlayerStatus(false, "Menu");
+    
+    authenticateWithArgon();
 
     auto pinger = new StatusPinger();
     cocos2d::CCDirector::sharedDirector()->getScheduler()->scheduleSelector(
@@ -126,18 +149,18 @@ class $modify(StatusProfilePage, ProfilePage) {
         auto statusLabel = cocos2d::CCLabelBMFont::create("Searching...", "bigFont.fnt");
         statusLabel->setID("player-status-label"_spr);
         statusLabel->setScale(0.5f);
-        statusLabel->setAnchorPoint({ 0.5f, 0.5f });  
+        statusLabel->setAnchorPoint({ 0.5f, 0.5f });
         statusLabel->setPosition({ winSize.width / 2, yPos });
-        layer->addChild(statusLabel, 100);
+        layer->addChild(statusLabel);
 
         auto percentLabel = cocos2d::CCLabelBMFont::create("", "bigFont.fnt");
         percentLabel->setID("player-percent-label"_spr);
         percentLabel->setScale(0.5f);
         percentLabel->setColor({ 255, 255, 50 });
-        percentLabel->setAnchorPoint({ 0.0f, 0.5f });  
+        percentLabel->setAnchorPoint({ 0.0f, 0.5f });
         percentLabel->setPosition({ winSize.width / 2, yPos });
         percentLabel->setVisible(false);
-        layer->addChild(percentLabel, 100);
+        layer->addChild(percentLabel);
 
         m_fields->m_statusLabel = statusLabel;
         m_fields->m_percentLabel = percentLabel;
@@ -157,7 +180,7 @@ class $modify(StatusProfilePage, ProfilePage) {
         auto label = m_fields->m_statusLabel;
         auto percentLabel = m_fields->m_percentLabel;
 
-        geode::async::spawn(
+        async::spawn(
             req.get(url),
             [alive, label, percentLabel](web::WebResponse response) {
                 if (!(*alive)) return;

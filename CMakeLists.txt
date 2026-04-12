@@ -10,6 +10,9 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
 project(PlayerStatus VERSION 1.0.0)
 
+# Disable precompiled headers globally (prevents CL.exe crash on Argon)
+set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
@@ -24,6 +27,7 @@ add_subdirectory($ENV{GEODE_SDK} ${CMAKE_CURRENT_BINARY_DIR}/geode)
 
 setup_geode_mod(${PROJECT_NAME})
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    DISABLE_PRECOMPILE_HEADERS ON
-)
+CPMAddPackage("gh:GlobedGD/argon@1.4.7")
+target_link_libraries(${PROJECT_NAME} argon)
+
+
