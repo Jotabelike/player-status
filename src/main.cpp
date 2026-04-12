@@ -53,7 +53,6 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     g_levelName = levelName;
     g_percentage = percentage;
 
-    
     ensureAuthenticated();
 
     if (g_authToken.empty()) return;
@@ -78,7 +77,13 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
 
     async::spawn(
         req.post(url),
-        [](web::WebResponse response) {}
+        [](web::WebResponse response) {
+            if (!response.ok()) {             
+                log::error("Failed to update status: {} - {}",
+                    response.code(),
+                    response.string().unwrapOr("Unanswered"));
+            }
+        }
     );
 }
 
