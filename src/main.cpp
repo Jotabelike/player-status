@@ -7,6 +7,7 @@
 #include <Geode/utils/async.hpp>
 #include <argon/argon.hpp>
 #include <memory>
+#include <chrono>  
 
 using namespace geode::prelude;
 
@@ -15,15 +16,14 @@ bool g_isEditing = false;
 std::string g_levelName = "Main Menu";
 int g_percentage = 0;
 std::string g_authToken = "";
-int g_authedAccountId = 0; 
- 
+int g_authedAccountId = 0;
+
 void ensureAuthenticated() {
     auto accountManager = GJAccountManager::sharedState();
     if (!accountManager || accountManager->m_accountID == 0) return;
-    int currentAccountId = accountManager->m_accountID;  
+    int currentAccountId = accountManager->m_accountID;
     if (!g_authToken.empty() && g_authedAccountId == currentAccountId) return;
 
-    
     g_authToken = "";
     g_authedAccountId = 0;
 
@@ -32,7 +32,6 @@ void ensureAuthenticated() {
         argon::startAuth(),
         [capturedId](Result<std::string> result) {
             if (result.isOk()) {
-               
                 auto am = GJAccountManager::sharedState();
                 if (am && am->m_accountID == capturedId) {
                     g_authToken = std::move(result).unwrap();
@@ -74,14 +73,17 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     auto req = web::WebRequest();
     req.certVerification(false);
     req.bodyJSON(payload);
+    req.timeout(std::chrono::seconds(15));  
 
     async::spawn(
         req.post(url),
         [](web::WebResponse response) {
-            if (!response.ok()) {             
-                log::error("Failed to update status: {} - {}",
-                    response.code(),
-                    response.string().unwrapOr("Unanswered"));
+            if (!response.ok()) {
+                std::string errorStr = response.string().unwrapOr("Unanswered");
+                if (errorStr.length() > 200) {
+                    errorStr = errorStr.substr(0, 200) + "... [Truncado]";
+                }
+                log::error("Failed to update status: {} - {}", response.code(), errorStr);
             }
         }
     );
@@ -182,13 +184,11 @@ class $modify(StatusProfilePage, ProfilePage) {
 
         m_fields->m_targetAccountId = score->m_accountID;
 
-     
         auto accountManager = GJAccountManager::sharedState();
         if (accountManager && accountManager->m_accountID == score->m_accountID) {
             sendPlayerStatus(g_isPlaying, g_levelName, g_percentage);
         }
 
-        
         if (auto oldStatus = layer->getChildByID("player-status-label"_spr)) {
             oldStatus->removeFromParentAndCleanup(true);
         }
@@ -198,27 +198,23 @@ class $modify(StatusProfilePage, ProfilePage) {
         m_fields->m_statusLabel = nullptr;
         m_fields->m_percentLabel = nullptr;
 
-      
         this->unschedule(schedule_selector(StatusProfilePage::updateStatus));
 
-       
         cocos2d::CCNode* usernameNode = layer->getChildByIDRecursive("username-menu");
 
         float xPos;
         float yPos;
 
         if (usernameNode && usernameNode->getParent()) {
-   
             auto worldPos = usernameNode->getParent()->convertToWorldSpace(usernameNode->getPosition());
             auto localPos = layer->convertToNodeSpace(worldPos);
             xPos = localPos.x;
-            yPos = localPos.y - 14.0f;
+            yPos = localPos.y - 19.0f;
         }
         else {
-       
             auto contentSize = layer->getContentSize();
             xPos = contentSize.width / 2;
-            yPos = contentSize.height * 0.85f;
+            yPos = (contentSize.height * 0.85f) - 6.0f;
         }
 
         auto statusLabel = cocos2d::CCLabelBMFont::create("Searching...", "bigFont.fnt");
@@ -247,24 +243,27 @@ class $modify(StatusProfilePage, ProfilePage) {
     void updateStatus(float dt) {
         if (!m_fields->m_statusLabel) return;
 
-        auto label = m_fields->m_statusLabel;
-        auto percentLabel = m_fields->m_percentLabel;
-
-     
         std::string url = "https://player-status-server.onrender.com/get-status/" + std::to_string(m_fields->m_targetAccountId);
         auto req = web::WebRequest();
         req.certVerification(false);
+        req.timeout(std::chrono::seconds(15)); 
 
         auto alive = m_fields->m_alive;
 
         async::spawn(
             req.get(url),
-            [alive, label, percentLabel](web::WebResponse response) {
+            [alive, this](web::WebResponse response) {
+
                 if (!(*alive)) return;
+
+                auto label = m_fields->m_statusLabel;
+                auto percentLabel = m_fields->m_percentLabel;
+
+                if (!label || !percentLabel) return;
 
                 auto reposition = [&]() {
                     label->setAnchorPoint({ 1.0f, 0.5f });
-               
+
                     auto parent = label->getParent();
                     float parentWidth = parent ? parent->getContentSize().width
                         : cocos2d::CCDirector::sharedDirector()->getWinSize().width;
@@ -275,7 +274,7 @@ class $modify(StatusProfilePage, ProfilePage) {
                     float startX = (parentWidth - totalW) / 2.0f;
                     label->setPosition({ startX + statusW, label->getPositionY() });
                     percentLabel->setPosition({ startX + statusW, percentLabel->getPositionY() });
-                };
+                    };
 
                 if (response.ok()) {
                     auto jsonResult = response.json();
@@ -291,9 +290,9 @@ class $modify(StatusProfilePage, ProfilePage) {
 
                             if (isEditing) {
                                 label->setString("Editor: ");
-                                label->setColor({ 180, 80, 255 });  
+                                label->setColor({ 180, 80, 255 });
                                 percentLabel->setString(level.c_str());
-                                percentLabel->setColor({ 255, 255, 50 });  
+                                percentLabel->setColor({ 255, 255, 50 });
                                 percentLabel->setVisible(true);
                             }
                             else if (isPlaying) {
@@ -316,6 +315,13 @@ class $modify(StatusProfilePage, ProfilePage) {
                     }
                 }
                 else {
+             
+                    std::string errorStr = response.string().unwrapOr("Unanswered");
+                    if (errorStr.length() > 200) {
+                        errorStr = errorStr.substr(0, 200) + "... [Truncated]";
+                    }
+                    log::error("HTTP error while retrieving profile: {} | {}", response.code(), errorStr);
+
                     label->setString("Network error");
                     label->setColor({ 255, 70, 70 });
                     percentLabel->setVisible(false);

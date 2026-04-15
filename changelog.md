@@ -1,3 +1,13 @@
+## 1.0.0 Beta 5
+- Fixed a major crash (EXCEPTION_ACCESS_VIOLATION) on the profile page
+- Resolved pointer issues during active network requests
+- Moved profile status labels down by 5 pixels to prevent overlapping
+- Fixed a math error in the server's Argon rate-limit handler
+- Reduced the server's global Argon cooldown from 10 minutes to 2 minutes
+- Added a 15-second timeout limit to prevent infinite loading
+- Truncated massive 502 HTML error logs to keep the Geode console clean
+- Resolved the persistent "Network error" on first profile views (Cold Starts)
+
 # 1.0.0 Beta 4
 - Implemented Argon token caching on the server to prevent API rate limits (Error 429)
 - Added a global cooldown system to gracefully handle traffic spikes and server restarts
