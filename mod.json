@@ -8,7 +8,7 @@
 	},
 	"id": "xjotabelikex.player-status",
 	"name": "Player Status",
-	"version": "v1.0.0-beta.5",
+	"version": "v1.0.0-beta.6",
 	"developer": "XJotaBeLikeX",
 	"description": "This mod adds activity statuses to player profiles and yours.",
 	"links": {
@@ -20,5 +20,13 @@
 	],
 	"dependencies": {
 		"geode.node-ids": ">=v1.23.3"
+	},
+	"settings": {
+		"hide-editor-level": {
+			"name": "Hide Editor Level",
+			"type": "bool",
+			"default": false,
+			"description": "Hides the name of the level you are currently editing."
+		}
 	}
 }

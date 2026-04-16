@@ -1,4 +1,10 @@
-## 1.0.0 Beta 5
+# 1.0.0 Beta 6
+- Added a "Hide Editor Level" setting to keep unreleased projects private
+- Removed the Argon dependency completely to bypass rate-limit restrictions and 429 errors
+- Fixed a memory leak in the client's background pinger by switching to a static instance
+- Optimized backend performance by stripping out heavy token caching and cleanup intervals
+
+# 1.0.0 Beta 5
 - Fixed a major crash (EXCEPTION_ACCESS_VIOLATION) on the profile page
 - Resolved pointer issues during active network requests
 - Moved profile status labels down by 5 pixels to prevent overlapping

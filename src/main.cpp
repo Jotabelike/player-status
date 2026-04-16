@@ -5,7 +5,6 @@
 #include <Geode/modify/ProfilePage.hpp>
 #include <Geode/utils/web.hpp>
 #include <Geode/utils/async.hpp>
-#include <argon/argon.hpp>
 #include <memory>
 #include <chrono>  
 
@@ -15,36 +14,6 @@ bool g_isPlaying = false;
 bool g_isEditing = false;
 std::string g_levelName = "Main Menu";
 int g_percentage = 0;
-std::string g_authToken = "";
-int g_authedAccountId = 0;
-
-void ensureAuthenticated() {
-    auto accountManager = GJAccountManager::sharedState();
-    if (!accountManager || accountManager->m_accountID == 0) return;
-    int currentAccountId = accountManager->m_accountID;
-    if (!g_authToken.empty() && g_authedAccountId == currentAccountId) return;
-
-    g_authToken = "";
-    g_authedAccountId = 0;
-
-    int capturedId = currentAccountId;
-    async::spawn(
-        argon::startAuth(),
-        [capturedId](Result<std::string> result) {
-            if (result.isOk()) {
-                auto am = GJAccountManager::sharedState();
-                if (am && am->m_accountID == capturedId) {
-                    g_authToken = std::move(result).unwrap();
-                    g_authedAccountId = capturedId;
-                    log::info("Argon authentication successful for account {}", capturedId);
-                }
-            }
-            else {
-                log::warn("Argon authentication failed: {}", result.unwrapErr());
-            }
-        }
-    );
-}
 
 void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int percentage = 0, bool isEditing = false) {
     g_isPlaying = isPlaying;
@@ -52,12 +21,8 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     g_levelName = levelName;
     g_percentage = percentage;
 
-    ensureAuthenticated();
-
-    if (g_authToken.empty()) return;
     auto accountManager = GJAccountManager::sharedState();
     if (!accountManager || accountManager->m_accountID == 0) return;
-    if (accountManager->m_accountID != g_authedAccountId) return;
 
     matjson::Value payload;
     payload["accountId"] = std::to_string(accountManager->m_accountID);
@@ -66,14 +31,13 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     payload["isPlaying"] = isPlaying;
     payload["isEditing"] = isEditing;
     payload["percentage"] = percentage;
-    payload["authtoken"] = g_authToken;
 
     std::string url = "https://player-status-server.onrender.com/update-status";
 
     auto req = web::WebRequest();
     req.certVerification(false);
     req.bodyJSON(payload);
-    req.timeout(std::chrono::seconds(15));  
+    req.timeout(std::chrono::seconds(15));
 
     async::spawn(
         req.post(url),
@@ -89,7 +53,8 @@ void sendPlayerStatus(bool isPlaying, const std::string& levelName = "", int per
     );
 }
 
-class StatusPinger : public cocos2d::CCNode {
+ 
+class StatusPinger : public cocos2d::CCObject {
 public:
     void sendPing(float dt) {
         sendPlayerStatus(g_isPlaying, g_levelName, g_percentage, g_isEditing);
@@ -97,17 +62,17 @@ public:
 };
 
 $on_mod(Loaded) {
-    auto pinger = new StatusPinger();
+   
+    static StatusPinger pinger;
     cocos2d::CCDirector::sharedDirector()->getScheduler()->scheduleSelector(
         schedule_selector(StatusPinger::sendPing),
-        pinger,
+        &pinger,
         15.0f,
         false
     );
 }
 
 class $modify(StatusPlayLayer, PlayLayer) {
-
     struct Fields {
         int lastSentPercent = 0;
     };
@@ -144,19 +109,16 @@ class $modify(StatusPlayLayer, PlayLayer) {
 };
 
 class $modify(StatusEditorLayer, LevelEditorLayer) {
-
     bool init(GJGameLevel * level, bool p1) {
-        if (!LevelEditorLayer::init(level, p1)) return false;
-
-        std::string name = level->m_levelName;
+        if (!LevelEditorLayer::init(level, p1)) return false;      
+        bool hideEditorLevel = Mod::get()->getSettingValue<bool>("hide-editor-level"); 
+        std::string name = hideEditorLevel ? "" : level->m_levelName;
         sendPlayerStatus(false, name, 0, true);
-
         return true;
     }
 };
 
 class $modify(StatusEditorPause, EditorPauseLayer) {
-
     void onExitEditor(cocos2d::CCObject * sender) {
         sendPlayerStatus(false, "Menu");
         EditorPauseLayer::onExitEditor(sender);
@@ -164,7 +126,6 @@ class $modify(StatusEditorPause, EditorPauseLayer) {
 };
 
 class $modify(StatusProfilePage, ProfilePage) {
-
     struct Fields {
         std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
         cocos2d::CCLabelBMFont* m_statusLabel = nullptr;
@@ -246,7 +207,7 @@ class $modify(StatusProfilePage, ProfilePage) {
         std::string url = "https://player-status-server.onrender.com/get-status/" + std::to_string(m_fields->m_targetAccountId);
         auto req = web::WebRequest();
         req.certVerification(false);
-        req.timeout(std::chrono::seconds(15)); 
+        req.timeout(std::chrono::seconds(15));
 
         auto alive = m_fields->m_alive;
 
@@ -289,11 +250,20 @@ class $modify(StatusProfilePage, ProfilePage) {
                             int percent = json["percentage"].asInt().unwrapOr(0);
 
                             if (isEditing) {
-                                label->setString("Editor: ");
-                                label->setColor({ 180, 80, 255 });
-                                percentLabel->setString(level.c_str());
-                                percentLabel->setColor({ 255, 255, 50 });
-                                percentLabel->setVisible(true);
+                                if (level.empty()) {
+                                  
+                                    label->setString("Editor");
+                                    label->setColor({ 180, 80, 255 });
+                                    percentLabel->setVisible(false);
+                                }
+                                else {
+                                
+                                    label->setString("Editor: ");
+                                    label->setColor({ 180, 80, 255 });
+                                    percentLabel->setString(level.c_str());
+                                    percentLabel->setColor({ 255, 255, 50 });
+                                    percentLabel->setVisible(true);
+                                }
                             }
                             else if (isPlaying) {
                                 label->setString(("Playing: " + level + " - ").c_str());
@@ -315,7 +285,6 @@ class $modify(StatusProfilePage, ProfilePage) {
                     }
                 }
                 else {
-             
                     std::string errorStr = response.string().unwrapOr("Unanswered");
                     if (errorStr.length() > 200) {
                         errorStr = errorStr.substr(0, 200) + "... [Truncated]";
